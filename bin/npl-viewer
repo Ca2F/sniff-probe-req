@@ -6,18 +6,23 @@ from sniff_probe_req.probe_request_sniffer import ProbeRequestSniffer
 
 class ProbeRequestSnifferTUI:
     palette = [
-        ("foot", "dark cyan", "dark blue", "bold"),
+        ("header_running", "white", "dark green", "bold"),
+        ("header_stopped", "white", "dark red", "bold"),
+        ("footer", "dark cyan", "dark blue", "bold"),
         ("key", "light cyan", "dark blue", "underline"),
-        ("selected", "black", "light gray"),
+        ("selected", "black", "light green"),
     ]
 
-    footer_text = ("foot", [
+    footer_text = ("footer", [
         "    ",
-        ("key", "SPACE"), " start/pause  ",
+        ("key", "P"), " play/pause  ",
         ("key", "Q"), " quit",
     ])
 
     def __init__(self):
+        self.interface = urwid.Text("wlan0")
+        self.sniffer_running = False
+
         self.stations = [
             "Station 1",
             "Station 2",
@@ -33,11 +38,18 @@ class ProbeRequestSnifferTUI:
         self.view = self.setup_view()
 
     def setup_view(self):
-        header = urwid.Text("Running... Interface: wlan0")
-        footer = urwid.AttrWrap(urwid.Text(self.footer_text), "foot")
+        self.sniffer_state_text = urwid.Text("Stopped")
+
+        self.header = urwid.AttrWrap(urwid.Columns([
+            urwid.Text("Sniffer state: "),
+            self.sniffer_state_text,
+            urwid.Text(" Interface: "),
+            self.interface,
+        ]), "header_stopped")
+        footer = urwid.AttrWrap(urwid.Text(self.footer_text), "footer")
         vline = urwid.AttrWrap(urwid.SolidFill(u'\u2502'), 'line')
 
-        stations_menu = urwid.Padding(self.setup_menu("Stations", self.stations), left=2, right=2)
+        stations_menu = urwid.Padding(self.setup_menu("List of Stations", self.stations), left=4, right=4)
         pnl_list = urwid.ListBox(self.pnl)
 
         body = urwid.Columns([
@@ -47,9 +59,10 @@ class ProbeRequestSnifferTUI:
         ], focus_column=1)
 
         top = urwid.Frame(
-            header=header,
+            header=self.header,
             body=body,
-            footer=footer
+            footer=footer,
+            focus_part = "body"
         )
 
         return top
@@ -59,13 +72,29 @@ class ProbeRequestSnifferTUI:
 
         for c in choices:
             button = urwid.Button(c)
-            urwid.connect_signal(button, "click", self.item_chosen, c)
+            urwid.connect_signal(button, "click", self.station_chosen, c)
             body.append(urwid.AttrMap(button, None, focus_map="selected"))
 
         return urwid.ListBox(urwid.SimpleFocusListWalker(body))
 
-    def item_chosen(button, choice):
+    def station_chosen(self, button, choice):
         pass
+
+    def start_sniffer(self):
+        self.sniffer_running = True
+        self.sniffer_state_text.set_text("Running")
+        self.header.set_attr("header_running");
+
+    def stop_sniffer(self):
+        self.sniffer_running = False
+        self.sniffer_state_text.set_text("Stopped")
+        self.header.set_attr("header_stopped");
+
+    def toggle_sniffer_state(self):
+        if self.sniffer_running:
+            self.stop_sniffer()
+        else:
+            self.start_sniffer()
 
     def main(self):
         self.loop = urwid.MainLoop(self.view, self.palette, unhandled_input=self.unhandled_keypress)
@@ -75,10 +104,10 @@ class ProbeRequestSnifferTUI:
         raise urwid.ExitMainLoop()
 
     def unhandled_keypress(self, key):
-        if key in ('q', 'Q'):
+        if key in ("q", "Q"):
             self.exit_program()
-        elif key == "space":
-            pass
+        elif key in ("p", "P"):
+            self.toggle_sniffer_state()
         else:
             return
 
